@@ -36,6 +36,7 @@ class DebtSerializer(serializers.ModelSerializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
+    # debts = DebtSerializer(many=True)
     class Meta:
         model = Group
         fields = ('id', 'group_name', 'debts', 'members')
@@ -65,4 +66,4 @@ class AddExpenseSerializer(serializers.ModelSerializer):
 class ExpenseReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExpenseReview
-        fields = ['expense', 'name', 'description', 'date']
+        fields = ['id', 'expense', 'name', 'description', 'date']

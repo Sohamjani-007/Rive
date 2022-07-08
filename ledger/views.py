@@ -1,12 +1,16 @@
-from django.conf import UserSettingsHolder
 from rest_framework import status
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import action
+from django.http import HttpResponse
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.mixins import ListModelMixin, CreateModelMixin
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.views import APIView
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.pagination import PageNumberPagination
+from rest_framework_xml.renderers import XMLRenderer
 from ledger.serializers import AddExpenseSerializer, DebtSerializer, ExpenseReviewSerializer, GroupSerializer, UserProfileSerializer, ExpenseUserSerializer, ExpenseSerializer
 from ledger.models import ExpenseReview, UserProfileManager, UserProfile, Expense, ExpenseUser, Group, Debt, AddExpense
 
@@ -15,13 +19,16 @@ from ledger.models import ExpenseReview, UserProfileManager, UserProfile, Expens
 class UserProfileListView(ListCreateAPIView):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    ordering_fields = ['email', 'name']
 
-    # def get_queryset(self):
-    #     return UserProfile.objects.all() # This method is useful when we have some logic , some conditions etc.
+
+    # def get_queryset(self):              # This method is useful when we have some logic , some conditions etc.
+    #     return UserProfile.objects.all() # Watch the commented get_queryset in GroupListAndAddViewSet
     # def get_serializer_class(self):
-    #     return UserProfileSerializer # This method is useful when we have some logic ,prehaps some different users or roles or different serializer classes.
+    #     return UserProfileSerializer     # This method is useful when we have some logic ,prehaps some different users or roles or different serializer classes.
 
-    def post(self, request) -> Response:
+    def create(self, request) -> Response:
         """Create a hello message with our name"""
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -61,11 +68,37 @@ class UserProfileListView(ListCreateAPIView):
 
 
 class GroupListAndAddViewSet(ModelViewSet):
+    """
+    List all groups, or create a new group.
+    """
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-    def post(self, request):
-        # import ipdb
-        # ipdb.set_trace()
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['debts', 'members']
+    search_fields = ['group_name', 'members__name']
+    ordering_fields = ['group_name', 'members__name']
+    pagination_class = PageNumberPagination
+    # renderer_classes = [XMLRenderer, ]
+    http_method_names = ['post', 'get']
+
+    def get_queryset(self):
+        queryset =  Group.objects.all()
+        debts_id = self.request.query_params.get('debts_id')
+        if debts_id is not None:
+            queryset = queryset.filter(debts_id=debts_id)
+        return queryset
+
+    def list(self, request, format=None):
+        groups = Group.objects.all()
+        serializer = GroupSerializer(groups, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        data = {
+            "group_name": request.POST.get('group_name', None),
+            "debts": request.POST.get('debts', None),
+            "members": request.POST.get('members', None),
+        }
         serializer = GroupSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
@@ -91,7 +124,6 @@ class GroupListAndAddViewSet(ModelViewSet):
             return Response({"status": "Group Created"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 # class GroupListView(APIView):
 #     """
 #     List all groups, or create a new group.
@@ -111,7 +143,7 @@ class GroupListAndAddViewSet(ModelViewSet):
 #         # ipdb.set_trace()
 #         serializer = GroupSerializer(data=request.data)
 #         if serializer.is_valid():
-#             data = serializer.validated_data
+#             data = serializer.validated_raise_exception=Truedata
 #             group = Group.objects.create(group_name=data.get('group_name'))
 #             print(group)
 
